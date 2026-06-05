@@ -28,6 +28,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Session state 초기화
+for k, v in [("companies", pd.DataFrame()), ("corp_code", None), ("corp_name", ""),
+              ("corp_cls", "Y"), ("stock_code", ""), ("statements", {}),
+              ("df_cum", pd.DataFrame()), ("df_emp", pd.DataFrame())]:
+    if k not in st.session_state:
+        st.session_state[k] = v
+
 with st.sidebar:
     st.title("📊 기업 재무 Dashboard")
     st.markdown("---")
@@ -42,18 +49,15 @@ with st.sidebar:
             st.warning("API Key를 입력하거나 환경변수 DART_API_KEY를 설정해 주세요.")
             st.stop()
 
-    for k, v in [("companies", pd.DataFrame()), ("corp_code", None), ("corp_name", ""),
-                  ("corp_cls", "Y"), ("stock_code", ""), ("statements", {}),
-                  ("df_cum", pd.DataFrame()), ("df_emp", pd.DataFrame())]:
-        if k not in st.session_state:
-            st.session_state[k] = v
-
     st.markdown("### 🔍 기업 검색")
     keyword = st.text_input("기업명", placeholder="삼성전자, LG전자 등")
     if st.button("검색", use_container_width=True):
-        with st.spinner("검색 중..."):
-            st.session_state.companies = search_companies(keyword)
-        st.session_state.corp_code = None
+        if keyword.strip():
+            with st.spinner("검색 중..."):
+                st.session_state.companies = search_companies(keyword)
+            st.session_state.corp_code = None
+        else:
+            st.warning("기업명을 입력해 주세요.")
 
     if not st.session_state.companies.empty:
         df_r = st.session_state.companies
@@ -79,7 +83,7 @@ with st.sidebar:
 
     if st.button("📥 데이터 불러오기", use_container_width=True, type="primary"):
         if not st.session_state.corp_code:
-            st.error("기업을 먼저 선택해 주세요.")
+            st.error("기업을 먼저 검색하고 선택해 주세요.")
         elif not years:
             st.error("조회 연도를 선택해 주세요.")
         else:
@@ -94,7 +98,7 @@ with st.sidebar:
                     if df_cum.empty:
                         st.warning("데이터를 가져오지 못했습니다.")
                     else:
-                        st.success(f"✅ {len(stmts)}개 보고서 로드 완료")
+itemplate                        st.success(f"✅ {len(stmts)}개 보고서 로드 완료")
                 except Exception as e:
                     st.error(f"오류: {e}")
 
