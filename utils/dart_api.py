@@ -20,11 +20,13 @@ def _get(endpoint, params):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def search_companies(keyword):
-    data = _get("company.json", {"corp_name": keyword})
+    # list.json으로 회사명 검색 (corp_name 파라미터 지원)
+    data = _get("list.json", {"corp_name": keyword, "page_count": "40"})
     if not data.get("list"):
         return pd.DataFrame()
     df = pd.DataFrame(data["list"])
-    return df[["corp_code", "corp_name", "corp_cls", "stock_code"]].drop_duplicates()
+    cols = [c for c in ["corp_code", "corp_name", "corp_cls", "stock_code"] if c in df.columns]
+    return df[cols].drop_duplicates(subset=["corp_code"]).reset_index(drop=True)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
