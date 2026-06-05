@@ -1,15 +1,22 @@
+import io
 import os
-import requests
+import zipfile
+import xml.etree.ElementTree as ET
+
 import pandas as pd
+import requests
 import streamlit as st
 
 BASE_URL = "https://opendart.fss.or.kr/api"
 REPORT_CODES = {"Q1": "11013", "Q2": "11012", "Q3": "11014", "Annual": "11011"}
 
 
+def _api_key():
+    return os.environ.get("DART_API_KEY", "")
+
+
 def _get(endpoint, params):
-    api_key = os.environ.get("DART_API_KEY", "")
-    params = {**params, "crtfc_key": api_key}
+    params = {**params, "crtfc_key": _api_key()}
     resp = requests.get(f"{BASE_URL}/{endpoint}", params=params, timeout=30)
     resp.raise_for_status()
     data = resp.json()
@@ -18,15 +25,36 @@ def _get(endpoint, params):
     return data
 
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def _load_corp_codes() -> pd.DataFrame:
+    """DART 전체 기업 목록 다운로드 (corpCode.xml ZIP)"""
+    resp = requests.get(
+        f"{BASE_URL}/corpCode.xml",
+        params={"crtfc_key": _api_key()},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+        xml_bytes = zf.read("CORPCODE.xml")
+    root = ET.fromstring(xml_bytes)
+    rows = [
+        {
+            "corp_code":  item.findtext("corp_code", ""),
+            "corp_name":  item.findtext("corp_name", ""),
+            "stock_code": item.findtext("stock_code", "").strip(),
+        }
+        for item in root.findall("list")
+    ]
+    return pd.DataFrame(rows)
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
-def search_companies(keyword):
-    # list.json으로 회사명 검색 (corp_name 파라미터 지원)
-    data = _get("list.json", {"corp_name": keyword, "page_count": "40"})
-    if not data.get("list"):
-        return pd.DataFrame()
-    df = pd.DataFrame(data["list"])
-    cols = [c for c in ["corp_code", "corp_name", "corp_cls", "stock_code"] if c in df.columns]
-    return df[cols].drop_duplicates(subset=["corp_code"]).reset_index(drop=True)
+def search_companies(keyword: str) -> pd.DataFrame:
+    df = _load_corp_codes()
+    result = df[df["corp_name"].str.contains(keyword, na=False, case=False)].copy()
+    # stock_code 없으면 비상장
+    result["corp_cls"] = result["stock_code"].apply(lambda x: "Y" if x else "")
+    return result.reset_index(drop=True)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -48,7 +76,9 @@ def get_statements(corp_code, year, report_code, fs_div="CFS"):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_employees(corp_code, year, report_code):
-    data = _get("empSttus.json", {"corp_code": corp_code, "bsns_year": str(year), "reprt_code": report_code})
+    data = _get("empSttus.json", {
+        "corp_code": corp_code, "bsns_year": str(year), "reprt_code": report_code
+    })
     if not data.get("list"):
         return pd.DataFrame()
     return pd.DataFrame(data["list"])
@@ -57,8 +87,10 @@ def get_employees(corp_code, year, report_code):
 @st.cache_data(ttl=3600, show_spinner=False)
 def search_disclosures(corp_code, bgn_de=None, pblntf_ty=None):
     params = {"corp_code": corp_code, "page_count": "40"}
-    if bgn_de: params["bgn_de"] = bgn_de
-    if pblntf_ty: params["pblntf_ty"] = pblntf_ty
+    if bgn_de:
+        params["bgn_de"] = bgn_de
+    if pblntf_ty:
+        params["pblntf_ty"] = pblntf_ty
     data = _get("list.json", params)
     if not data.get("list"):
         return pd.DataFrame()
