@@ -3,14 +3,13 @@ import requests
 import pandas as pd
 import streamlit as st
 
-DART_API_KEY = os.environ.get("DART_API_KEY", "")
 BASE_URL = "https://opendart.fss.or.kr/api"
-
 REPORT_CODES = {"Q1": "11013", "Q2": "11012", "Q3": "11014", "Annual": "11011"}
 
 
 def _get(endpoint, params):
-    params = {**params, "crtfc_key": DART_API_KEY}
+    api_key = os.environ.get("DART_API_KEY", "")
+    params = {**params, "crtfc_key": api_key}
     resp = requests.get(f"{BASE_URL}/{endpoint}", params=params, timeout=30)
     resp.raise_for_status()
     data = resp.json()
