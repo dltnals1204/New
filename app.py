@@ -98,7 +98,7 @@ with st.sidebar:
                     if df_cum.empty:
                         st.warning("데이터를 가져오지 못했습니다.")
                     else:
-itemplate                        st.success(f"✅ {len(stmts)}개 보고서 로드 완료")
+                        st.success(f"✅ {len(stmts)}개 보고서 로드 완료")
                 except Exception as e:
                     st.error(f"오류: {e}")
 
